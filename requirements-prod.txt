@@ -1,0 +1,88 @@
+# Production requirements for Shop Assistant AI with LangGraph Phase 4
+# Optimized for enterprise deployment with security features
+
+# Core FastAPI and web framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+starlette==0.27.0
+
+# Database and ORM
+sqlalchemy==2.0.23
+asyncpg==0.29.0
+alembic==1.13.1
+psycopg2-binary==2.9.9
+
+# Redis for caching and rate limiting
+redis==5.0.1
+hiredis==2.2.3
+
+# Authentication and security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+cryptography==41.0.8
+
+# LangGraph and AI/ML dependencies
+langgraph==0.0.26
+langchain==0.1.0
+langchain-core==0.1.7
+langchain-openai==0.0.2
+openai==1.6.1
+cohere==4.46
+tiktoken==0.5.2
+
+# HTTP client and API integration
+httpx==0.25.2
+aiohttp==3.9.1
+requests==2.31.0
+
+# Data processing and analytics
+pandas==2.1.4
+numpy==1.25.2
+
+# Image processing (for multi-modal capabilities)
+Pillow==10.1.0
+opencv-python==4.8.1.78
+
+# Document processing
+python-docx==1.1.0
+PyPDF2==3.0.1
+
+# Monitoring and logging
+prometheus-client==0.19.0
+structlog==23.2.0
+rich==13.7.0
+
+# Performance and optimization
+orjson==3.9.10
+lz4==4.3.2
+
+# Configuration and environment
+python-dotenv==1.0.0
+click==8.1.7
+
+# Background task processing
+celery==5.3.4
+kombu==5.3.4
+
+# WebSocket support
+websockets==12.0
+
+# Shopify integration
+shopify-api==12.4.1
+
+# Development and testing (production builds)
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+
+# Security tools for production
+bandit==1.7.5
+safety==2.3.5
+
+# Additional utilities
+python-dateutil==2.8.2
+pytz==2023.3
+email-validator==2.1.0

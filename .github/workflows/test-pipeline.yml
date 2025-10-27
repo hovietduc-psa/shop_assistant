@@ -1,0 +1,474 @@
+name: Comprehensive Testing Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run comprehensive tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+
+jobs:
+  # Job 1: Code Quality and Linting
+  code-quality:
+    runs-on: ubuntu-latest
+    name: Code Quality Check
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements/requirements-test.txt
+        pip install -r requirements/requirements-dev.txt
+
+    - name: Black code formatting check
+      run: |
+        black --check --diff app/ tests/
+
+    - name: isort import sorting check
+      run: |
+        isort --check-only --diff app/ tests/
+
+    - name: flake8 linting
+      run: |
+        flake8 app/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 app/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: mypy type checking
+      run: |
+        mypy app/ --ignore-missing-imports --no-strict-optional
+
+    - name: bandit security linter
+      run: |
+        bandit -r app/ -f json -o bandit-report.json
+
+    - name: Upload security scan results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: bandit-security-report
+        path: bandit-report.json
+
+  # Job 2: Unit Tests
+  unit-tests:
+    runs-on: ubuntu-latest
+    name: Unit Tests
+
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}-${{ matrix.python-version }}
+        restore-keys: |
+          ${{ runner.os }}-pip-${{ matrix.python-version }}-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements/requirements-test.txt
+        pip install -r requirements/requirements-dev.txt
+
+    - name: Run unit tests with coverage
+      run: |
+        pytest tests/unit/ -v \
+          --cov=app \
+          --cov-report=xml \
+          --cov-report=html \
+          --cov-report=term-missing \
+          --cov-fail-under=85
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unit-tests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Upload HTML coverage report
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report-${{ matrix.python-version }}
+        path: htmlcov/
+
+  # Job 3: Integration Tests
+  integration-tests:
+    runs-on: ubuntu-latest
+    name: Integration Tests
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_shop_assistant
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements/requirements-test.txt
+        pip install -r requirements/requirements-dev.txt
+
+    - name: Setup environment variables
+      run: |
+        cp .env.example .env
+        echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test_shop_assistant" >> .env
+        echo "REDIS_URL=redis://localhost:6379/0" >> .env
+        echo "TESTING=true" >> .env
+
+    - name: Run database migrations
+      run: |
+        alembic upgrade head
+
+    - name: Run integration tests
+      run: |
+        pytest tests/integration/ -v \
+          --maxfail=5 \
+          --tb=short
+
+    - name: Upload integration test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: integration-test-results
+        path: tests/reports/
+
+  # Job 4: End-to-End Tests
+  e2e-tests:
+    runs-on: ubuntu-latest
+    name: End-to-End Tests
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements/requirements-test.txt
+        pip install -r requirements/requirements-dev.txt
+
+    - name: Start application
+      run: |
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+        sleep 10  # Wait for application to start
+
+    - name: Run E2E tests
+      run: |
+        pytest tests/e2e/ -v \
+          --maxfail=3 \
+          --tb=short \
+          --timeout=300
+
+    - name: Upload E2E test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: e2e-test-results
+        path: tests/e2e/reports/
+
+  # Job 5: Performance Tests
+  performance-tests:
+    runs-on: ubuntu-latest
+    name: Performance Tests
+
+    if: github.event_name == 'schedule' || github.event_name == 'push'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements/requirements-test.txt
+        pip install -r requirements/requirements-dev.txt
+        pip install locust
+
+    - name: Start application
+      run: |
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+        sleep 10
+
+    - name: Run performance tests
+      run: |
+        pytest tests/performance/ -v \
+          --benchmark-only \
+          --benchmark-json=benchmark.json
+
+    - name: Run load tests with Locust
+      run: |
+        locust --headless \
+          --users 50 \
+          --spawn-rate 5 \
+          --run-time 60s \
+          --host http://localhost:8000 \
+          --html locust-report.html \
+          tests/performance/locustfile.py
+
+    - name: Upload performance results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: performance-results
+        path: |
+          benchmark.json
+          locust-report.html
+
+  # Job 6: Security Tests
+  security-tests:
+    runs-on: ubuntu-latest
+    name: Security Tests
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements/requirements-test.txt
+        pip install -r requirements/requirements-dev.txt
+        pip install safety
+
+    - name: Run security tests
+      run: |
+        pytest tests/security/ -v \
+          --maxfail=5 \
+          --tb=short
+
+    - name: Check for known security vulnerabilities
+      run: |
+        safety check --json --output safety-report.json
+
+    - name: Run Bandit security scan
+      run: |
+        bandit -r app/ -f json -o bandit-report.json
+
+    - name: Upload security scan results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          safety-report.json
+          bandit-report.json
+
+  # Job 7: Build and Deploy to Staging
+  build-and-deploy-staging:
+    runs-on: ubuntu-latest
+    name: Build and Deploy to Staging
+
+    needs: [code-quality, unit-tests, integration-tests, security-tests]
+    if: github.ref == 'refs/heads/develop'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository }}:staging
+          ghcr.io/${{ github.repository }}:staging-${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Deploy to staging
+      run: |
+        echo "Deploy to staging environment"
+        # Add actual deployment commands here
+
+  # Job 8: Regression Tests
+  regression-tests:
+    runs-on: ubuntu-latest
+    name: Regression Tests
+
+    needs: [build-and-deploy-staging]
+    if: github.ref == 'refs/heads/develop'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements/requirements-test.txt
+        pip install -r requirements/requirements-dev.txt
+
+    - name: Run regression tests against staging
+      run: |
+        pytest tests/regression/ -v \
+          --base-url=https://staging.shopassistant.ai \
+          --maxfail=10 \
+          --tb=short
+
+    - name: Upload regression test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: regression-test-results
+        path: tests/regression/reports/
+
+  # Job 9: Test Summary and Notification
+  test-summary:
+    runs-on: ubuntu-latest
+    name: Test Summary
+    if: always()
+
+    needs: [code-quality, unit-tests, integration-tests, e2e-tests, performance-tests, security-tests]
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+
+    - name: Generate test summary
+      run: |
+        echo "# Test Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        # Unit tests status
+        if [ "${{ needs.unit-tests.result }}" == "success" ]; then
+          echo "✅ Unit Tests: Passed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Unit Tests: Failed" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        # Integration tests status
+        if [ "${{ needs.integration-tests.result }}" == "success" ]; then
+          echo "✅ Integration Tests: Passed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Integration Tests: Failed" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        # E2E tests status
+        if [ "${{ needs.e2e-tests.result }}" == "success" ]; then
+          echo "✅ End-to-End Tests: Passed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ End-to-End Tests: Failed" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        # Security tests status
+        if [ "${{ needs.security-tests.result }}" == "success" ]; then
+          echo "✅ Security Tests: Passed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Security Tests: Failed" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        # Performance tests status (if run)
+        if [ "${{ needs.performance-tests.result }}" == "success" ]; then
+          echo "✅ Performance Tests: Passed" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ needs.performance-tests.result }}" == "skipped" ]; then
+          echo "⏭️ Performance Tests: Skipped" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Performance Tests: Failed" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "Tests failed. Check the logs for details."
+        # Add Slack/Teams notification here if needed
