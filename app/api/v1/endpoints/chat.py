@@ -25,7 +25,7 @@ from app.core.config import settings
 router = APIRouter()
 
 # Feature flag for LangGraph (Phase 1 implementation)
-USE_LANGGRAPH = os.getenv("USE_LANGGRAPH", "false").lower() == "true"
+USE_LANGGRAPH = settings.USE_LANGGRAPH
 
 
 @router.post("/message", response_model=MessageResponse)
@@ -143,6 +143,7 @@ async def _process_with_langgraph(
     """
     Process message using LangGraph orchestrator (Phase 2 implementation).
     """
+    # Import LangGraph modules only when needed
     from app.services.langgraph_orchestrator import LangGraphOrchestratorFactory
     from app.services.conversation_analytics import conversation_analytics_service
 

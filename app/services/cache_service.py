@@ -264,19 +264,35 @@ class CacheService:
     async def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
         try:
+            # Ensure Redis is initialized before checking connection status
+            await self.ensure_redis_initialized()
+
+            # Check Redis connection with actual ping test
+            redis_connected = False
+            if self.redis_client:
+                try:
+                    await self.redis_client.ping()
+                    redis_connected = True
+                except Exception as e:
+                    logger.warning(f"Redis ping failed: {e}")
+                    redis_connected = False
+
             stats = {
                 "memory_cache_size": len(self.memory_cache),
                 "memory_cache_max_items": self.max_memory_items,
-                "redis_connected": self.redis_client is not None
+                "redis_connected": redis_connected,
+                "redis_initialized": self._redis_initialized
             }
 
-            if self.redis_client:
+            if self.redis_client and redis_connected:
                 try:
                     info = await self.redis_client.info()
                     stats.update({
                         "redis_used_memory": info.get("used_memory_human", "N/A"),
                         "redis_connected_clients": info.get("connected_clients", 0),
-                        "redis_total_commands_processed": info.get("total_commands_processed", 0)
+                        "redis_total_commands_processed": info.get("total_commands_processed", 0),
+                        "redis_keyspace_hits": info.get("keyspace_hits", 0),
+                        "redis_keyspace_misses": info.get("keyspace_misses", 0)
                     })
                 except Exception as e:
                     logger.error(f"Error getting Redis stats: {e}")

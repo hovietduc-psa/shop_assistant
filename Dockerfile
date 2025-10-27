@@ -29,11 +29,11 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 WORKDIR /app
 
 # Copy requirements
-COPY requirements.txt requirements-prod.txt ./
+COPY requirements-docker.txt requirements-dev.txt ./
 
 # Install Python dependencies
 RUN pip install --upgrade pip && \
-    pip install -r requirements-prod.txt
+    pip install -r requirements-docker.txt
 
 # Development stage
 FROM base as development

@@ -4,7 +4,7 @@
 # Core FastAPI and web framework
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-pydantic==2.5.0
+pydantic>=2.7.4
 pydantic-settings==2.1.0
 starlette==0.27.0
 
@@ -22,15 +22,15 @@ hiredis==2.2.3
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
-cryptography==41.0.8
+cryptography>=41.0.0
 
 # LangGraph and AI/ML dependencies
-langgraph==0.0.26
-langchain==0.1.0
+langgraph==1.0.1
+langchain==0.0.350
 langchain-core==0.1.7
 langchain-openai==0.0.2
-openai==1.6.1
-cohere==4.46
+openai>=1.6.1
+cohere==4.39
 tiktoken==0.5.2
 
 # HTTP client and API integration
@@ -71,7 +71,8 @@ kombu==5.3.4
 websockets==12.0
 
 # Shopify integration
-shopify-api==12.4.1
+shopifyapi==12.7.0
+ShopifyAPI==12.7.0
 
 # Development and testing (production builds)
 pytest==7.4.3
@@ -80,7 +81,7 @@ pytest-cov==4.1.0
 
 # Security tools for production
 bandit==1.7.5
-safety==2.3.5
+safety>=2.3.0
 
 # Additional utilities
 python-dateutil==2.8.2

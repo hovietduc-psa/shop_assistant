@@ -21,9 +21,12 @@ class CacheStats(BaseModel):
     memory_cache_size: int
     memory_cache_max_items: int
     redis_connected: bool
+    redis_initialized: Optional[bool] = None
     redis_used_memory: Optional[str] = None
     redis_connected_clients: Optional[int] = None
     redis_total_commands_processed: Optional[int] = None
+    redis_keyspace_hits: Optional[int] = None
+    redis_keyspace_misses: Optional[int] = None
 
 
 class CacheOperation(BaseModel):
