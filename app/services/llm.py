@@ -14,7 +14,7 @@ from app.utils.exceptions import LLMError, ExternalServiceError
 
 
 class LLMService:
-    """Service for managing LLM interactions through OpenRouter."""
+    """Service for managing LLM interactions through OpenRouter with stage-specific model selection."""
 
     def __init__(self):
         self.api_key = settings.OPENROUTER_API_KEY
@@ -24,12 +24,22 @@ class LLMService:
 
         # Available models for fallback
         self.available_models = [
+            "meta-llama/llama-3.1-8b-instruct",
+            "openai/gpt-4o-mini",
+            "openai/gpt-3.5-turbo",
             "openai/gpt-4",
             "openai/gpt-4-turbo-preview",
             "anthropic/claude-3-opus",
             "anthropic/claude-3-sonnet",
             "anthropic/claude-3-haiku",
         ]
+
+        # 3-Stage system models from configuration
+        self.stage_models = {
+            "intent_classification": settings.INTENT_CLASSIFICATION_MODEL,
+            "tool_call": settings.TOOL_CALL_MODEL,
+            "response_generation": settings.RESPONSE_GENERATION_MODEL,
+        }
 
         # Initialize HTTP client
         self._client = None
@@ -58,6 +68,68 @@ class LLMService:
         """Async context manager exit."""
         if self._client:
             await self._client.aclose()
+
+    def get_model_for_stage(self, stage: str, fallback_model: Optional[str] = None) -> str:
+        """
+        Get the appropriate model for a specific stage.
+
+        Args:
+            stage: The processing stage (e.g., 'intent_classification', 'greeting')
+            fallback_model: Fallback model if stage model is not configured
+
+        Returns:
+            Model name to use for the stage
+        """
+        # Try to get stage-specific model
+        stage_model = self.stage_models.get(stage)
+        if stage_model and stage_model in self.available_models:
+            logger.debug(f"Using stage-specific model '{stage_model}' for stage '{stage}'")
+            return stage_model
+
+        # Fallback to provided fallback model
+        if fallback_model and fallback_model in self.available_models:
+            logger.warning(f"Stage '{stage}' model not configured, using fallback '{fallback_model}'")
+            return fallback_model
+
+        # Fallback to default model
+        logger.warning(f"Stage '{stage}' model not configured, using default '{self.default_model}'")
+        return self.default_model
+
+    async def generate_response_for_stage(
+        self,
+        stage: str,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        top_p: Optional[float] = None,
+        stream: bool = False,
+        fallback_models: Optional[List[str]] = None,
+    ) -> Union[Dict[str, Any], str]:
+        """
+        Generate a response for a specific stage using the configured model.
+
+        Args:
+            stage: The processing stage (e.g., 'intent_classification', 'greeting')
+            messages: List of message dictionaries with 'role' and 'content'
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens to generate
+            top_p: Nucleus sampling parameter
+            stream: Whether to stream the response
+            fallback_models: List of fallback models to try
+
+        Returns:
+            Response dictionary or streamed content
+        """
+        model = self.get_model_for_stage(stage)
+        return await self.generate_response(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+            stream=stream,
+            fallback_models=fallback_models
+        )
 
     async def generate_response(
         self,

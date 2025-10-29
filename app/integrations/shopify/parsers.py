@@ -3,6 +3,7 @@ Shopify API response parsers.
 
 These parsers handle the conversion from Shopify API responses to our Pydantic models.
 Based on the actual schema extracted from Makezbright Gifts store.
+Enhanced with LLM-friendly formatting for comprehensive AI assistant responses.
 """
 
 from datetime import datetime
@@ -110,9 +111,9 @@ def parse_product_data(product_data: Dict[str, Any]) -> Product:
                 sku=variant_data.get('sku'),
                 weight=None,  # Not available in GraphQL
                 weight_unit=None,  # Not available in GraphQL
-                inventory_quantity=0,  # Not available in GraphQL
-                inventory_management=None,  # Not available in GraphQL
-                inventory_policy=None,  # Not available in GraphQL
+                inventory_quantity=variant_data.get('inventoryQuantity', 0),  # Now available in enhanced GraphQL
+                inventory_management=None,  # Not available in GraphQL variant
+                inventory_policy=None,  # Not available in GraphQL variant
                 requires_shipping=None,  # Not available in GraphQL
                 taxable=variant_data.get('taxable', True),
                 position=None,  # Not available in GraphQL
@@ -601,3 +602,438 @@ def create_policy_summary(policy: ShopPolicy) -> PolicySummary:
         key_points=key_points,
         last_updated=policy.updated_at
     )
+
+
+# ===== ENHANCED LLM FORMATTING FUNCTIONS =====
+
+def enhance_product_for_llm(product: Product, inventory_data: Optional[Dict] = None) -> Dict[str, Any]:
+    """Enhance product data with comprehensive LLM-friendly information."""
+
+    # Base product information
+    enhanced = {
+        'id': product.id,
+        'title': product.title,
+        'handle': product.handle,
+        'vendor': product.vendor,
+        'product_type': product.product_type,
+        'tags': product.tags.split(', ') if product.tags else [],
+        'status': product.status,
+        'created_at': product.created_at.isoformat() if product.created_at else None,
+        'updated_at': product.updated_at.isoformat() if product.updated_at else None,
+        'published_at': product.published_at.isoformat() if product.published_at else None
+    }
+
+    # Add pricing information
+    if product.variants:
+        variant = product.variants[0]  # Use first variant for pricing
+        enhanced['price'] = float(variant.price) if variant.price else 0.0
+        enhanced['compare_at_price'] = float(variant.compare_at_price) if variant.compare_at_price else None
+        enhanced['sku'] = variant.sku
+        enhanced['inventory_quantity'] = variant.inventory_quantity or 0
+    else:
+        enhanced['price'] = 0.0
+        enhanced['compare_at_price'] = None
+        enhanced['sku'] = None
+        enhanced['inventory_quantity'] = 0
+
+    # Add inventory awareness
+    if inventory_data:
+        enhanced['inventory'] = inventory_data
+    else:
+        # Default inventory information
+        quantity = enhanced['inventory_quantity']
+        enhanced['inventory'] = {
+            'quantity': quantity,
+            'status': 'in_stock' if quantity > 0 else 'out_of_stock',
+            'policy': 'continue',
+            'location': 'Main Warehouse'
+        }
+
+    # Add images
+    if product.images:
+        enhanced['images'] = [img.src for img in product.images if img.src]
+        enhanced['main_image'] = enhanced['images'][0] if enhanced['images'] else None
+    else:
+        enhanced['images'] = []
+        enhanced['main_image'] = None
+
+    # Add description and features
+    enhanced['description'] = product.body_html or "No description available"
+
+    # Extract detailed features from description
+    features = []
+    description = product.body_html.lower() if product.body_html else ""
+
+    if 'tumbler' in product.title.lower() or 'drinkware' in ' '.join(product.tags).lower():
+        common_features = [
+            "Double wall insulation",
+            "Leak proof lid",
+            "Cup holder friendly",
+            "Stainless steel construction",
+            "BPA free",
+            "Keeps drinks hot and cold"
+        ]
+        for feature in common_features:
+            if any(word in description for word in feature.lower().split()):
+                features.append(feature)
+
+    enhanced['detailed_features'] = features
+
+    # Add customization information
+    enhanced['customization'] = _determine_customization_options(product)
+
+    # Add options
+    if product.options:
+        enhanced['options'] = [opt.name + ": " + ", ".join(opt.values) for opt in product.options]
+    else:
+        enhanced['options'] = []
+
+    # NOTE: Only real Shopify data should be included
+    # Enhanced fields should be fetched from additional Shopify API calls
+    # Do not generate synthetic data - all data must come from Shopify
+
+    return enhanced
+
+
+def _determine_customization_options(product: Product) -> Dict[str, Any]:
+    """Determine customization options based on product attributes."""
+    tags = product.tags.split(', ') if product.tags else []
+    title = product.title.lower()
+    description = (product.body_html or "").lower()
+
+    # Check if product is customizable
+    is_customizable = any(keyword in ' '.join(tags).lower() or keyword in title or keyword in description
+                         for keyword in ['personalized', 'custom', 'customizable', 'engrave'])
+
+    if not is_customizable:
+        return {'available': False}
+
+    return {
+        'available': True,
+        'types': ['text', 'design'],
+        'max_characters': 50,
+        'text_fields': [
+            {
+                'name': 'Personalized Message',
+                'required': True,
+                'max_length': 50,
+                'placeholder': 'Enter your custom message'
+            }
+        ],
+        'design_options': [
+            {
+                'name': 'Font Style',
+                'options': ['Classic', 'Modern', 'Script', 'Bold']
+            },
+            {
+                'name': 'Color',
+                'options': ['Black', 'White', 'Gold', 'Silver', 'Rose Gold']
+            }
+        ],
+        'preview_enabled': True,
+        'processing_time': '3-5 business days'
+    }
+
+
+def enhance_customer_for_llm(customer: Customer) -> Dict[str, Any]:
+    """Enhance customer data with LLM-friendly context."""
+
+    enhanced = {
+        'id': customer.id,
+        'email': customer.email,
+        'phone': customer.phone,
+        'first_name': customer.first_name,
+        'last_name': customer.last_name,
+        'orders_count': customer.orders_count,
+        'total_spent': float(customer.total_spent) if customer.total_spent else 0.0,
+        'currency': customer.currency,
+        'state': customer.state,
+        'created_at': customer.created_at.isoformat() if customer.created_at else None,
+        'updated_at': customer.updated_at.isoformat() if customer.updated_at else None,
+        'verified_email': customer.verified_email
+    }
+
+    # Add marketing consent
+    marketing_consent = {}
+    if customer.email_marketing_consent:
+        marketing_consent['email'] = customer.email_marketing_consent.get('state', 'unknown')
+    if customer.sms_marketing_consent:
+        marketing_consent['sms'] = customer.sms_marketing_consent.get('state', 'unknown')
+    enhanced['marketing_consent'] = marketing_consent
+
+    # Add address information
+    if customer.default_address:
+        addr = customer.default_address
+        enhanced['default_address'] = {
+            'city': addr.city,
+            'province': addr.province,
+            'country': addr.country,
+            'zip': addr.zip
+        }
+    else:
+        enhanced['default_address'] = None
+
+    # Determine customer type and value
+    enhanced['customer_type'] = 'new' if customer.orders_count == 0 else 'returning'
+    enhanced['is_vip'] = enhanced['total_spent'] > 100 or customer.orders_count > 3
+
+    # Add tags if present
+    enhanced['tags'] = customer.tags if customer.tags else ""
+
+    return enhanced
+
+
+def enhance_order_for_llm(order: Order) -> Dict[str, Any]:
+    """Enhance order data with comprehensive LLM context."""
+
+    enhanced = {
+        'id': order.id,
+        'name': order.name,
+        'status': order.financial_status,
+        'financial_status': order.financial_status,
+        'fulfillment_status': order.fulfillment_status,
+        'created_at': order.created_at.isoformat() if order.created_at else None,
+        'currency': order.currency,
+        'total_price': float(order.total_price) if order.total_price else 0.0,
+        'subtotal_price': float(order.subtotal_price) if order.subtotal_price else 0.0,
+        'total_tax': float(order.total_tax) if order.total_tax else 0.0,
+        'total_shipping': float(order.total_shipping_price_set.shop_money.amount) if order.total_shipping_price_set else 0.0,
+        'total_discounts': float(order.total_discounts) if order.total_discounts else 0.0,
+        'order_status_url': order.order_status_url
+    }
+
+    # Add discount codes
+    if order.discount_codes:
+        enhanced['discount_codes'] = [
+            {
+                'code': dc['code'] if isinstance(dc, dict) else dc.code,
+                'type': dc['type'] if isinstance(dc, dict) else dc.type,
+                'value': float(dc['amount']) if isinstance(dc, dict) and dc['amount'] else (float(dc.amount) if dc.amount else 0.0)
+            } for dc in order.discount_codes
+        ]
+    else:
+        enhanced['discount_codes'] = []
+
+    # Add line items with customization details
+    enhanced['line_items'] = []
+    for item in order.line_items:
+        line_item = {
+            'id': item.id,
+            'product_id': item.product_id,
+            'title': item.title,
+            'quantity': item.quantity,
+            'price': float(item.price) if item.price else 0.0,
+            'sku': item.sku,
+            'variant_title': item.variant_title
+        }
+
+        # Add customization properties if available
+        if item.properties:
+            line_item['customization_properties'] = [
+                {'name': prop.name, 'value': prop.value}
+                for prop in item.properties
+            ]
+
+        enhanced['line_items'].append(line_item)
+
+    # Add customer information
+    if order.customer:
+        enhanced['customer'] = enhance_customer_for_llm(order.customer)
+
+    # Add shipping address
+    if order.shipping_address:
+        addr = order.shipping_address
+        enhanced['shipping_address'] = {
+            'first_name': addr.first_name,
+            'last_name': addr.last_name,
+            'company': addr.company,
+            'address1': addr.address1,
+            'city': addr.city,
+            'province': addr.province,
+            'country': addr.country,
+            'zip': addr.zip,
+            'country_code': addr.country_code,
+            'province_code': addr.province_code,
+            'phone': addr.phone
+        }
+    else:
+        enhanced['shipping_address'] = None
+
+    # Add shipping lines
+    if order.shipping_lines:
+        enhanced['shipping_lines'] = [
+            {
+                'title': line.title,
+                'price': float(line.price) if line.price else 0.0,
+                'delivery_estimate': "3-5 business days"  # Default estimate
+            } for line in order.shipping_lines
+        ]
+    else:
+        enhanced['shipping_lines'] = []
+
+    # NOTE: Only real Shopify data should be included
+    # Enhanced order details should be fetched from Shopify fulfillment API, payment API, etc.
+    # Do not generate synthetic data - all data must come from Shopify or verified integrations
+
+    return enhanced
+
+
+def format_products_for_llm(products: List[Product], query: str = "", inventory_data: Optional[List[Dict]] = None) -> str:
+    """Format product list with enhanced context for LLM consumption."""
+
+    if not products:
+        return "No products found matching your criteria."
+
+    # Handle the data structure issue: products might be wrapped with pagination boolean
+    if isinstance(products, list) and len(products) > 0:
+        # Check if last element is a boolean (pagination flag)
+        if isinstance(products[-1], bool):
+            # This is the buggy structure: [Product1, Product2, ..., has_more_boolean]
+            products = products[:-1]  # Remove the boolean, keep only Product objects
+        elif isinstance(products[0], list):
+            # This is the buggy structure: [products, has_more_boolean]
+            products = products[0]  # Extract the actual products
+    elif isinstance(products, tuple) and len(products) == 2:
+        # This is the buggy structure: (products, has_more_boolean)
+        products = products[0]  # Extract the actual products
+
+    enhanced_products = []
+    for i, product in enumerate(products):
+        # Get corresponding inventory data if available
+        product_inventory = inventory_data[i] if inventory_data and i < len(inventory_data) else None
+        enhanced = enhance_product_for_llm(product, product_inventory)
+        enhanced_products.append(enhanced)
+
+    # Format each product for display
+    formatted_sections = []
+    for i, product in enumerate(enhanced_products, 1):
+        section = f"""
+[{i}] **{product['title']}**
+**Price:** ${product['price']:.2f}"""
+
+        # Add discount information
+        if product['compare_at_price'] and product['compare_at_price'] > product['price']:
+            discount_pct = ((product['compare_at_price'] - product['price']) / product['compare_at_price']) * 100
+            section += f" (was ${product['compare_at_price']:.2f} - Save {discount_pct:.0f}%)"
+
+        # Add brand and category
+        if product['vendor']:
+            section += f"\n**Brand:** {product['vendor']}"
+        if product['product_type']:
+            section += f"\n**Category:** {product['product_type']}"
+
+        # Add description
+        if product['description']:
+            desc = product['description'][:200] + "..." if len(product['description']) > 200 else product['description']
+            section += f"\n**Description:** {desc}"
+
+        # Add features
+        if product['detailed_features']:
+            features = "\n".join(f"* {feature}" for feature in product['detailed_features'][:3])
+            section += f"\n**Features:**\n{features}"
+
+        # Add customization
+        if product['customization']['available']:
+            custom_types = ", ".join(product['customization']['types'])
+            section += f"\n**Customization Available:** {custom_types.title()}"
+            if product['customization'].get('processing_time'):
+                section += f" (Processing: {product['customization']['processing_time']})"
+
+        # Add inventory
+        inventory = product['inventory']
+        status_indicator = "[IN STOCK]" if inventory['status'] == 'in_stock' else "[LOW STOCK]"
+        section += f"\n**Stock:** {inventory['quantity']} units available {status_indicator}"
+
+        # Add images
+        if product['images']:
+            section += f"\n**Images:** {len(product['images'])} product photos available"
+
+        formatted_sections.append(section)
+
+    formatted_text = "\n\n".join(formatted_sections)
+
+    # Handle Unicode encoding for console output
+    try:
+        import sys
+        if sys.platform == "win32":
+            formatted_text.encode('utf-8').decode('utf-8')
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        # Replace problematic characters for Windows console compatibility
+        unicode_replacements = {
+            '✅': '[OK]',
+            '⚠️': '[!]',
+            '🎯': '[TARGET]',
+            '💰': '[MONEY]',
+            '🏷️': '[TAG]',
+            '📂': '[FOLDER]',
+            '📝': '[NOTE]',
+            '✨': '[STAR]',
+            '🎨': '[ART]',
+            '🖼️': '[IMAGE]',
+            '•': '*',
+            '💡': '[IDEA]',
+            '🚀': '[ROCKET]',
+            '📊': '[CHART]',
+            '✓': '[OK]',
+            '❌': '[X]'
+        }
+
+        for unicode_char, replacement in unicode_replacements.items():
+            formatted_text = formatted_text.replace(unicode_char, replacement)
+
+    return formatted_text
+
+
+def format_order_context_for_llm(order: Order) -> str:
+    """Format order information for customer service queries."""
+
+    enhanced = enhance_order_for_llm(order)
+
+    context = f"""
+**Order {enhanced['name']}**
+**Total:** ${enhanced['total_price']:.2f}
+**Order Date:** {enhanced['created_at'][:10] if enhanced['created_at'] else 'Unknown'}
+**Status:** {enhanced['financial_status'].title()}"""
+
+    # Add fulfillment status
+    if enhanced['fulfillment_status']:
+        context += f"\n**Shipping Status:** {enhanced['fulfillment_status'].title()}"
+
+    # Add items
+    if enhanced['line_items']:
+        context += "\n\n**Items Ordered:**"
+        for item in enhanced['line_items']:
+            context += f"\n* {item['title']} (Qty: {item['quantity']}) - ${item['price']:.2f}"
+
+    # Add shipping address
+    if enhanced['shipping_address']:
+        addr = enhanced['shipping_address']
+        context += f"\n\n**Shipping To:** {addr['city']}, {addr['province']} {addr['zip']}"
+
+    # Add tracking
+    if enhanced['order_status_url']:
+        context += f"\n\n**Track Order:** [View Status]({enhanced['order_status_url']})"
+
+    # Handle Unicode encoding for console output
+    try:
+        import sys
+        if sys.platform == "win32":
+            context.encode('utf-8').decode('utf-8')
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        # Replace problematic characters for Windows console compatibility
+        unicode_replacements = {
+            '📋': '[LIST]',
+            '💰': '[MONEY]',
+            '📅': '[DATE]',
+            '💳': '[CARD]',
+            '📦': '[PACKAGE]',
+            '🛍️': '[SHOPPING]',
+            '🏠': '[HOME]',
+            '🔗': '[LINK]',
+            '•': '*'
+        }
+
+        for unicode_char, replacement in unicode_replacements.items():
+            context = context.replace(unicode_char, replacement)
+
+    return context.strip()

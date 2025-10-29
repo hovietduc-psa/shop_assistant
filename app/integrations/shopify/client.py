@@ -43,8 +43,16 @@ class ShopifyClient:
             raise ShopifyError("Access token is required")
 
         # Base URLs
-        self.graphql_url = f"https://{self.config.shop_domain}.myshopify.com/admin/api/{self.config.api_version}/graphql.json"
-        self.rest_url = f"https://{self.config.shop_domain}.myshopify.com/admin/api/{self.config.api_version}"
+        # Handle domain that already includes .myshopify.com
+        if self.config.shop_domain.endswith('.myshopify.com'):
+            self.graphql_url = f"https://{self.config.shop_domain}/admin/api/{self.config.api_version}/graphql.json"
+        else:
+            self.graphql_url = f"https://{self.config.shop_domain}.myshopify.com/admin/api/{self.config.api_version}/graphql.json"
+        # Handle domain that already includes .myshopify.com
+        if self.config.shop_domain.endswith('.myshopify.com'):
+            self.rest_url = f"https://{self.config.shop_domain}/admin/api/{self.config.api_version}"
+        else:
+            self.rest_url = f"https://{self.config.shop_domain}.myshopify.com/admin/api/{self.config.api_version}"
 
         # HTTP client configuration
         self.client = httpx.AsyncClient(
@@ -259,7 +267,7 @@ class ShopifyClient:
                         first: int = 10,
                         after: Optional[str] = None,
                         query: Optional[str] = None,
-                        sort_key: str = "PROCESSED_AT",
+                        sort_key: str = "UPDATED_AT",
                         reverse: bool = True) -> Dict[str, Any]:
         """Get orders from Shopify."""
         graphql_query, variables = GraphQLQueryBuilder.get_orders_query(

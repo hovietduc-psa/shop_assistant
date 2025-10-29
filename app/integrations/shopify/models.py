@@ -146,7 +146,7 @@ class Product(BaseModel):
         if not self.variants:
             return Decimal('0'), Decimal('0')
 
-        prices = [variant.price.amount for variant in self.variants]
+        prices = [Decimal(variant.price) for variant in self.variants]
         return min(prices), max(prices)
 
     @property

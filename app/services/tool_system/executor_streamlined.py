@@ -142,10 +142,11 @@ class StreamlinedToolExecutor:
                 enhanced_query = f"{enhanced_query} category:{category}"
 
             # Perform initial search
-            results = await shopify.search_products(
+            products, has_more = await shopify.search_products(
                 query=enhanced_query,
                 limit=limit * 2,  # Get more results to allow for price filtering
             )
+            results = products  # Use only the products list for filtering
 
             # Filter by price if specified
             if price_min is not None or price_max is not None:

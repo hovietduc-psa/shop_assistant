@@ -11,6 +11,7 @@ from loguru import logger
 from app.services.llm import LLMService
 from app.services.tool_system.tools_streamlined import ToolCall, ToolResult, streamlined_tool_registry
 from app.services.cache_service import CacheService
+from app.core.config import settings
 
 
 class StreamlinedToolCallingService:
@@ -220,6 +221,7 @@ Respond with JSON format:
             logger.info(f"INTENT_CLASSIFICATION: About to call LLM service with prompt")
             response = await self.llm_service.generate_response(
                 messages=[{"role": "user", "content": classification_prompt}],
+                model=settings.INTENT_CLASSIFICATION_MODEL,
                 temperature=0.1,
                 max_tokens=100
             )
@@ -470,7 +472,8 @@ You are a helpful shop assistant AI. Respond appropriately to the message type:
 Respond with just the conversational text, no JSON or formatting."""
 
             # Generate LLM response with shorter token limit for speed
-            response = await self.llm_service.generate_response(
+            response = await self.llm_service.generate_response_for_stage(
+                stage="response_generation",
                 messages=[{"role": "user", "content": response_prompt}],
                 temperature=0.7,
                 max_tokens=60  # Reduced for faster responses
@@ -762,19 +765,43 @@ Example responses:
                     # Handle special case for product lists and other complex objects
                     if isinstance(result.data, dict):
                         if 'products' in result.data:
-                            # Format products as readable text
-                            products = result.data['products']
-                            if isinstance(products, list) and products:
-                                product_info = []
-                                for product in products[:3]:  # Limit to first 3 products
-                                    if hasattr(product, 'title'):
-                                        product_info.append(f"- {product.title}")
-                                    elif isinstance(product, dict):
-                                        product_info.append(f"- {product.get('title', 'Unknown Product')}")
-                                    else:
-                                        product_info.append(f"- {str(product)}")
-                                data_text = f"Found {len(products)} products:\n" + "\n".join(product_info)
-                            else:
+                            # Use enhanced product formatting from existing parsers
+                            try:
+                                from ...integrations.shopify.parsers import format_products_for_llm
+                                products = result.data['products']
+
+                                if isinstance(products, list) and products:
+                                    # Format products with enhanced context including inventory, customization, etc.
+                                    data_text = format_products_for_llm(products[:5])  # Limit to first 5 products
+                                else:
+                                    data_text = "No products found matching your criteria."
+                            except ImportError:
+                                # Fallback to basic formatting if enhanced functions not available
+                                products = result.data['products']
+                                if isinstance(products, list) and products:
+                                    product_info = []
+                                    for product in products[:3]:
+                                        if hasattr(product, 'title'):
+                                            product_info.append(f"- {product.title}")
+                                        elif isinstance(product, dict):
+                                            product_info.append(f"- {product.get('title', 'Unknown Product')}")
+                                        else:
+                                            product_info.append(f"- {str(product)}")
+                                    data_text = f"Found {len(products)} products:\n" + "\n".join(product_info)
+                                else:
+                                    data_text = str(result.data)
+                        elif 'orders' in result.data:
+                            # Use enhanced order formatting from existing parsers
+                            try:
+                                from ...integrations.shopify.parsers import format_order_context_for_llm
+                                orders = result.data['orders']
+
+                                if isinstance(orders, list) and orders:
+                                    # Format first order with enhanced context
+                                    data_text = format_order_context_for_llm(orders[0])
+                                else:
+                                    data_text = "No order information found."
+                            except ImportError:
                                 data_text = str(result.data)
                         else:
                             data_text = str(result.data)
@@ -846,6 +873,14 @@ Guidelines:
 4. If you need more information, ask clarifying questions
 5. Always provide actionable next steps when possible
 6. **If no products were found, keep response SHORT and to the point (1-2 sentences max)**
+
+**PRODUCT RESPONSE REQUIREMENTS:**
+- When products are found, present them in a clear, organized format
+- Include key product details in this order: title, price and discounts, short description, top features and customization options.
+- Use markdown formatting for better readability (bold for emphasis, bullet points for features)
+- For each product, write 2-3 sentences describing what the product is and why it's a good gift choice
+- Group similar products together and explain why they're good recommendations
+- End with helpful next steps or suggestions for finding more options
 
 Respond with a JSON object containing:
 {{
@@ -987,7 +1022,8 @@ Return JSON only:
 }}"""
 
         try:
-            response = await self.llm_service.generate_response(
+            response = await self.llm_service.generate_response_for_stage(
+                stage="intent_classification",
                 messages=[{"role": "user", "content": classification_prompt}],
                 temperature=0.1,
                 max_tokens=150
@@ -1132,7 +1168,8 @@ Example for product search:
 }}"""
 
         try:
-            response = await self.llm_service.generate_response(
+            response = await self.llm_service.generate_response_for_stage(
+                stage="tool_call",
                 messages=[{"role": "user", "content": resolution_prompt}],
                 temperature=0.1,
                 max_tokens=1000

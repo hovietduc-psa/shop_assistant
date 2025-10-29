@@ -1,0 +1,90 @@
+{
+  "products": {
+    "id": 7153939284050,
+    "title": "\"I Love You The Most\" 20oz Personalized Stainless Steel Tumbler",
+    "handle": "20oz-i-love-you-the-most-personalized-tumbler",
+    "vendor": "Makezbright",
+    "product_type": "Tumbler",
+    "tags": [
+      "Personalized",
+      "Stainless",
+      "Steel",
+      "Love"
+    ],
+    "status": "active",
+    "price": 29.99,
+    "compare_at_price": 59.99,
+    "sku": "HN152 - 20oz",
+    "options": [
+      "Size: 20oz"
+    ],
+    "images": [
+      "https://cdn.shopify.com/s/files/.../i-love-you-the-most-20oz.jpg"
+    ],
+    "main_image": "https://cdn.shopify.com/s/files/.../i-love-you-the-most-20oz.jpg",
+    "description": "Double wall steel insulation designed to maintain temperature...",
+    "created_at": "2023-08-23T23:52:15-07:00",
+    "updated_at": "2025-10-06T00:30:10-07:00"
+  },
+  "orders": {
+    "id": 6589808345170,
+    "name": "#MZBs923177",
+    "status": "paid",
+    "created_at": "2025-10-23T23:52:58-07:00",
+    "currency": "USD",
+    "total_price": 38.36,
+    "subtotal_price": 28.71,
+    "total_tax": 4.66,
+    "total_shipping": 4.99,
+    "discount_codes": [
+      "vip40"
+    ],
+    "line_items": [
+      {
+        "product_id": 6994888523858,
+        "title": "Family - Personalized Christmas Ornament",
+        "quantity": 3,
+        "price": 15.95,
+        "sku": "HSC1 - Acrylic",
+        "image": "https://cdn.customily.com/.../preview.jpeg"
+      }
+    ],
+    "shipping_address": {
+      "name": "JAN BIDA",
+      "city": "Arlington",
+      "province": "Texas",
+      "country": "United States",
+      "zip": "76012"
+    },
+    "customer": {
+      "id": 8832137625682,
+      "email": "BFFLYER20@AOL.COM",
+      "phone": "+18177131345",
+      "first_name": "JAN",
+      "last_name": "BIDA"
+    },
+    "order_status_url": "https://makezbrightgifts.com/.../authenticate"
+  },
+  "customers": {
+    "id": 8902846283858,
+    "email": "kathleengeary29@yahoo.com",
+    "phone": "+17746789409",
+    "first_name": null,
+    "last_name": null,
+    "orders_count": 0,
+    "total_spent": 0.00,
+    "currency": "USD",
+    "state": "disabled",
+    "created_at": "2025-10-24T02:22:53-07:00",
+    "email_marketing": "subscribed",
+    "sms_marketing": "subscribed"
+  },
+  "collections": {
+    "id": 271706882130,
+    "title": "Love Collection",
+    "handle": "love-collection",
+    "body_html": "Romantic and personalized gifts perfect for couples.",
+    "image": "https://cdn.shopify.com/s/files/.../love-collection.jpg",
+    "updated_at": "2025-09-18T10:00:00-07:00"
+  }
+}

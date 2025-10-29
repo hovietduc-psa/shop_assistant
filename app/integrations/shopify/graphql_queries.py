@@ -203,11 +203,35 @@ class GraphQLQueryBuilder:
         # Use proper Shopify GraphQL structure with correct field selection
         builder.nested("products", **query_params)
 
-        # Add proper connection structure with nested node fields
-        builder.nested("edges").fields("cursor").nested("node").fields(
-            "id", "title", "handle", "description", "productType", "vendor",
+        # Add proper connection structure with nested node fields including ALL necessary data
+        node_fields = builder.nested("edges").fields("cursor").nested("node")
+        node_fields.fields(
+            "id", "title", "handle", "description", "descriptionHtml", "productType", "vendor",
             "status", "tags", "createdAt", "updatedAt", "publishedAt"
-        ).end_nested().end_nested()
+        )
+        # Add images for LLM context
+        node_fields.nested("images", first=5)
+        node_fields.nested("edges")
+        node_fields.nested("node")
+        node_fields.fields("id", "src", "altText", "width", "height")
+        node_fields.end_nested()  # node
+        node_fields.end_nested()  # edges
+        node_fields.end_nested()  # images
+        # Add variants for pricing and inventory
+        node_fields.nested("variants", first=10)
+        node_fields.nested("edges")
+        node_fields.nested("node")
+        node_fields.fields("id", "title", "sku", "price", "compareAtPrice", "availableForSale",
+                         "inventoryQuantity", "taxable")
+        node_fields.end_nested()  # node
+        node_fields.end_nested()  # edges
+        node_fields.end_nested()  # variants
+        # Add options for product variations
+        node_fields.nested("options")
+        node_fields.fields("id", "name", "values")
+        node_fields.end_nested()  # options
+        node_fields.end_nested()  # node
+        node_fields.end_nested()  # edges
 
         # Add pageInfo with correct field names
         builder.nested("pageInfo").fields(
@@ -261,13 +285,14 @@ class GraphQLQueryBuilder:
         builder.end_nested()  # edges
         builder.end_nested()  # images
 
-        # Add variants with basic info
+        # Add variants with basic info including inventory
         builder.nested("variants", first=100)
         builder.nested("edges")
         builder.nested("node")
         builder.fields(
             "id", "title", "sku", "price", "compareAtPrice",
-            "taxable", "availableForSale", "createdAt", "updatedAt"
+            "taxable", "availableForSale", "createdAt", "updatedAt",
+            "inventoryQuantity"
         )
         builder.end_nested()  # node
         builder.end_nested()  # edges
@@ -287,7 +312,7 @@ class GraphQLQueryBuilder:
                         first: int = 10,
                         after: Optional[str] = None,
                         query: Optional[str] = None,
-                        sort_key: str = "PROCESSED_AT",
+                        sort_key: str = "UPDATED_AT",
                         reverse: bool = True) -> tuple[str, Dict[str, Any]]:
         """Get a query for fetching orders."""
         builder = cls()
@@ -302,33 +327,60 @@ class GraphQLQueryBuilder:
         builder.nested("orders",
                       first="$first",
                       after="$after" if after else None,
-                      query="$query" if query else None,
-                      sortKey=sort_key,
-                      reverse=reverse)
+                      query="$query" if query else None)
 
-        builder.with_connection(first=first, after=after)
-
+        # Add proper edges structure
+        builder.nested("edges")
         builder.nested("node")
         builder.fields(
-            "id", "orderNumber", "email", "phone", "financialStatus",
-            "fulfillmentStatus", "currencyCode", "totalPrice", "subtotalPrice",
-            "totalTax", "totalShippingPrice", "totalDiscounts",
-            "createdAt", "updatedAt", "processedAt", "cancelledAt",
-            "cancelReason"
+            "id", "name", "email", "phone", "displayFinancialStatus",
+            "displayFulfillmentStatus", "currencyCode",
+            "createdAt", "updatedAt", "processedAt", "cancelledAt"
         )
+
+        # Add price sets with proper sub-fields
+        builder.nested("totalPriceSet")
+        builder.nested("shopMoney")
+        builder.fields("amount", "currencyCode")
+        builder.end_nested()
+        builder.end_nested()
+
+        builder.nested("subtotalPriceSet")
+        builder.nested("shopMoney")
+        builder.fields("amount", "currencyCode")
+        builder.end_nested()
+        builder.end_nested()
+
+        builder.nested("totalTaxSet")
+        builder.nested("shopMoney")
+        builder.fields("amount", "currencyCode")
+        builder.end_nested()
+        builder.end_nested()
+
+        builder.nested("totalShippingPriceSet")
+        builder.nested("shopMoney")
+        builder.fields("amount", "currencyCode")
+        builder.end_nested()
+        builder.end_nested()
+
+        builder.nested("totalDiscountsSet")
+        builder.nested("shopMoney")
+        builder.fields("amount", "currencyCode")
+        builder.end_nested()
+        builder.end_nested()
 
         # Add customer info
         builder.nested("customer")
         builder.fields(
             "id", "email", "firstName", "lastName", "phone",
-            "ordersCount", "state", "verifiedEmail", "taxExempt",
-            "totalSpent", "createdAt", "updatedAt"
+            "numberOfOrders", "state", "verifiedEmail", "taxExempt",
+            "createdAt", "updatedAt"
         )
         builder.end_nested()  # customer
 
         # Add line items
         builder.nested("lineItems", first=50)
-        builder.with_connection(first=50)
+        builder.nested("edges")
         builder.nested("node")
         builder.fields(
             "id", "quantity", "title", "sku", "vendor", "taxable",
@@ -341,10 +393,20 @@ class GraphQLQueryBuilder:
         builder.fields("id", "title", "sku", "price")
         builder.end_nested()  # variant
         builder.end_nested()  # node
+        builder.end_nested()  # edges
         builder.end_nested()  # lineItems
 
         builder.end_nested()  # node
-        builder.end_nested()  # orders connection
+        builder.end_nested()  # edges
+
+        # Add pageInfo with correct fields
+        builder.nested("pageInfo")
+        builder.fields(
+            "hasNextPage", "hasPreviousPage"
+        )
+        builder.end_nested()  # pageInfo
+
+        builder.end_nested()  # orders
 
         return builder.build(), builder.get_variables()
 

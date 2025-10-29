@@ -102,8 +102,8 @@ async def send_message_stream(
                 yield f"data: {json.dumps({'type': 'complete', 'conversation_id': conversation_id})}\n\n"
 
             else:
-                # Fallback to streamlined system
-                yield f"data: {json.dumps({'type': 'status', 'message': 'Using streamlined system...'})}\n\n"
+                # Fallback to streamlined system with detailed progress updates
+                yield f"data: {json.dumps({'type': 'status', 'message': 'Processing your request...'})}\n\n"
 
                 from app.services.tool_dialogue_manager_streamlined import StreamlinedToolDialogueManager
                 dialogue_manager = StreamlinedToolDialogueManager()
@@ -112,13 +112,46 @@ async def send_message_stream(
                     None
                 )
 
-                response = await dialogue_manager.process_message(
-                    context,
-                    message.message
-                )
+                # Manually send status updates based on the processing steps we observed
+                try:
+                    # Step 1: Understanding the request (Intent classification)
+                    yield f"data: {json.dumps({'type': 'status', 'message': 'Understanding what you need...'})}\n\n"
 
-                yield f"data: {json.dumps({'type': 'response', 'content': response.message})}\n\n"
-                yield f"data: {json.dumps({'type': 'complete'})}\n\n"
+                    # Step 2: Finding the right approach (Tool resolution)
+                    yield f"data: {json.dumps({'type': 'status', 'message': 'Finding the best approach...'})}\n\n"
+
+                    # Process the message (this will trigger all the backend processing)
+                    response = await dialogue_manager.process_message(
+                        context,
+                        message.message
+                    )
+
+                    # Step 3: Check if any tools were used and show appropriate status
+                    if hasattr(response, 'tool_calls_used') and response.tool_calls_used:
+                        yield f"data: {json.dumps({'type': 'status', 'message': 'Searching for products...'})}\n\n"
+                        yield f"data: {json.dumps({'type': 'status', 'message': 'Found results, preparing response...'})}\n\n"
+
+                    # Step 4: Final preparation
+                    yield f"data: {json.dumps({'type': 'status', 'message': 'Preparing your response...'})}\n\n"
+
+                    # Send the actual response (sanitize metadata for JSON serialization)
+                    safe_metadata = {}
+                    if hasattr(response, 'metadata') and response.metadata:
+                        # Only include serializable metadata
+                        for key, value in response.metadata.items():
+                            try:
+                                json.dumps(value)  # Test if serializable
+                                safe_metadata[key] = value
+                            except (TypeError, ValueError):
+                                # Skip non-serializable objects like ToolResult
+                                safe_metadata[key] = str(value) if value is not None else None
+
+                    yield f"data: {json.dumps({'type': 'response', 'content': response.message, 'metadata': safe_metadata})}\n\n"
+                    yield f"data: {json.dumps({'type': 'complete', 'conversation_id': context.conversation_id})}\n\n"
+
+                except Exception as e:
+                    logger.error(f"Error in streamlined processing: {e}")
+                    yield f"data: {json.dumps({'type': 'error', 'message': 'An error occurred during processing'})}\n\n"
 
         except Exception as e:
             logger.error(f"Error in streaming response: {e}")

@@ -44,7 +44,17 @@ class Settings(BaseSettings):
     # OpenRouter settings
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
-    DEFAULT_LLM_MODEL: str = "openai/gpt-4"
+    DEFAULT_LLM_MODEL: str = os.getenv("DEFAULT_LLM_MODEL", "openai/gpt-4")
+
+    # 3-Stage system model configuration for cost and performance optimization
+    # Stage 1: Intent Classification
+    INTENT_CLASSIFICATION_MODEL: str = os.getenv("INTENT_CLASSIFICATION_MODEL", "meta-llama/llama-3.1-8b-instruct")
+
+    # Stage 2: Tool Call/Execution
+    TOOL_CALL_MODEL: str = os.getenv("TOOL_CALL_MODEL", "openai/gpt-4o-mini")
+
+    # Stage 3: Response Generation
+    RESPONSE_GENERATION_MODEL: str = os.getenv("RESPONSE_GENERATION_MODEL", "openai/gpt-4o-mini")
 
     # Cohere settings
     COHERE_API_KEY: str = os.getenv("COHERE_API_KEY", "")

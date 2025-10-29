@@ -1,0 +1,21 @@
+[
+  {
+    "test": "Order Data Schema",
+    "status": "PASS",
+    "data": "#MZBs923177"
+  },
+  {
+    "test": "LLM Unicode Formatting",
+    "status": "PASS",
+    "length": 665
+  },
+  {
+    "test": "Product Search",
+    "status": "PASS",
+    "success_rate": 75.0
+  },
+  {
+    "test": "Complete Integration",
+    "status": "PASS"
+  }
+]
